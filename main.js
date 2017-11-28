@@ -8,12 +8,19 @@ var fnMain = (function() {
     }
 
     function getConfig() {
-        //const pstring = '#C800D3,#FAD927,#11C7AC,#0B00C9';
-        //const pstring = '#FF0A60,#FFB538,#218E89,#3B0550';
+        //const pstring = '#0D0D0D,#2EB8AF,#F1F527,#2EB8AF,#06295E';
+        const pstring = '#383838,#913CE6,#41AB8B,#00E0FF';
         //const pstring = 'black,white,black';
-        const pstring = 'teal,#CE70BC,#9258C8';
+        //const pstring = 'teal,#CE70BC,#9258C8';
         const palette = pstring.split(',');
-        return {
+        const sequence = [11,14,8,3];
+        const colors = palette.slice(0, sequence.length);
+        const config = {
+            sequence: sequence,
+            colors: colors,
+            stripeBlendMode: PIXI.BLEND_MODES.ADD,
+            patternRepeats: 12,
+
             shapeRadius: 0.045, //relative to board
             shapeHolePercent: 1.0,
             hexOuterBorderWidth: 0.1, //percent of shape diameter
@@ -35,6 +42,7 @@ var fnMain = (function() {
             hexQuadColors: ['white','#AAAAAA','#DDDDDD'],
             //hexQuadColors: ['black','black','black'],
         };
+        return config;
     }
 
     function makeBoardRectangle(margin, viewRectangle) {
@@ -184,6 +192,76 @@ var fnMain = (function() {
         return points;
     }
 
+    function makePattern(config, board, renderer) {
+        function mirrorAndRepeat(seq, repeatCount) {
+            const mirrored = seq.concat(seq.slice().reverse());
+            let repeated = [];
+            for(let i = 0; i < repeatCount; i++) {
+                for(let m of mirrored) {
+                    repeated.push(m);
+                }
+            }
+            return repeated;
+        }
+        const colors = mirrorAndRepeat(config.colors, config.patternRepeats);
+        function sequenceToShapes(sequence, setter) {
+            const render = mirrorAndRepeat(config.sequence, config.patternRepeats);
+            const sum = render.reduce((a,b) => a + b);
+            if(sum < 1) { throw "sequence must be positive"; }
+            const longDimension = board.width < board.height ? board.height : board.width;
+            const boardScalar = Math.round(longDimension / sum);
+            const intervals = render.map(x => x * boardScalar);
+            const shapes = intervals.map((interval, index) => {
+                const result = {
+                    width: board.width,
+                    height: board.height,
+                    y: board.top,
+                    x: board.left,
+                    color: colors[index],
+                };
+                setter(result, interval);
+                return result;
+            }).filter(s => s.x <= board.right && s.y <= board.bottom);
+            return shapes;
+        }
+        function mapSprite(obj) {
+            const width = obj.width;
+            const height = obj.height;
+            const gfx = new PIXI.Graphics();
+            gfx.width = width;
+            gfx.height = height;
+            const color = colorNameToNumber(obj.color);
+            gfx.beginFill(color);
+            gfx.drawRect(0, 0, width, height);
+            gfx.endFill();
+            const texture = PIXI.RenderTexture.create(width, height);
+            renderer.render(gfx, texture);
+            const sprite = new PIXI.Sprite(texture);
+            sprite.x = obj.x;
+            sprite.y = obj.y;
+            sprite.blendMode = config.stripeBlendMode;
+            return sprite;
+        }
+        const talls = sequenceToShapes(config.sequence, (a,b) => {a.width = b;});
+        const wides = sequenceToShapes(config.sequence, (a,b) => {a.height = b;});
+        let leftCounter = board.left;
+        let topCounter = board.top;
+        const warpSprites = talls.map(s => {
+            s.x = leftCounter;
+            leftCounter += s.width;
+            const sprite = mapSprite(s);
+            return {sprite: sprite};
+        });
+        const weftSprites = wides.map(s => {
+            s.y = topCounter;
+            topCounter += s.height;
+            const sprite = mapSprite(s);
+            return {sprite: sprite};
+        });
+        const result = warpSprites.concat(weftSprites);
+        return result;
+    }
+
     function makeShapes(config, board, renderer) {
         const diameter = config.shapeRadius * 2;
         //const testPoints = drawHexagon(new PIXI.Graphics(), config.shapeRadius, config.shapeRadius, config.shapeRadius, config.backgroundColor, 1);
@@ -301,13 +379,14 @@ var fnMain = (function() {
         let board = makeBoardRectangle(config.screenMargin, app.screen);
         const smaller = board.width < board.height ? board.width : board.height;
         config.shapeRadius = Math.round(config.shapeRadius * smaller);
-        const shapes = makeShapes(config, board, app.renderer);
+        const shapes = makePattern(config, board, app.renderer);
         const background = makeBackground(config, app.screen, app.renderer);
-        app.stage.addChild(background);
+        //app.stage.addChild(background);
         for(let s of shapes) {
             app.stage.addChild(s.sprite);
         }
-        const animation = animateShapes(shapes, board, config);
+        //const animation = animateShapes(shapes, board, config);
+        const animation = {};
         let state = {
             config: config,
             app: app,
@@ -320,7 +399,7 @@ var fnMain = (function() {
             state.recorder = recorder || {capture: function(){}};
             app.start();
             render(Date.now(), state);
-            animation.play();
+            //animation.play();
             return state;
         }
     })();

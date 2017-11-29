@@ -1,0 +1,22 @@
+generate random intervals
+generate random colors
+allow selection between several different pattern generation behaviors
+  uniform random everything
+  generate intervals by iteratively mutating
+  expert systems like make big patches of cool and small stripes of bright
+  sometimes alter the weft pattern slightly (change a color, divide a strip, etc)
+  etc
+look into changing mask implementation (use a webgl cutout blend mode?)
+  current one uses full cpu to render
+animate between random patterns
+  create a fixed-size pool of stripes, all identical texture.
+    with a configurable tint for color, and dynamically resized.
+    use this pool of stripes to "render" any requested pattern.
+    this system will allow the same stripes to be animated between patterns,
+      and allow new ones to join or extra ones to leave (shrink or move offscreen or fade)
+  several animation behaviors
+    simple translate
+    a "blend" where stripes never move, only get wider/thinner and change color.
+    talls shrink down while new talls replace by growing from above (on both axes)
+    random swaps between warp and weft
+    etc

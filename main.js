@@ -8,21 +8,35 @@ var fnMain = (function() {
     }
 
     function getConfig() {
-        const sequencePairs = generateSequence();
-        const sequence = sequencePairs.map(x => x.width);
-        const colors = sequencePairs.map(x => x.color);
-        const patternRepeats = 1;
+        // const sequencePairs = generateSequencePairs();
+        // const sequence = sequencePairs.map(x => x.width);
+        // const colors = sequencePairs.map(x => x.color);
+        const patternRepeats = 2;
         const twillWidth = 4;
         const mergePatternEnds = false;
         const showWarp = true;
         const showWeft = true;
+        const enableMask = true;
         const stripeBlendMode = PIXI.BLEND_MODES.NORMAL;
-        const backgroundColor = colorNameToNumber('magenta');
+        const backgroundColor = colorStringToNumber('black');
         const screenMargin = 0;
         const cyclePause = 0;
+        const randomSequenceStrategy = {
+            stripesMin: 4,
+            stripesMax: 17,
+            widthMin: 1,
+            widthMax: 20,
+        }
+        const randomColorStrategy = {
+            maxBaseColors: 5,
+        }
+        const strategies = {
+            randomColor: randomColorStrategy,
+            randomSequence: randomSequenceStrategy,
+        }
         const config = {
-            sequence: sequence,
-            colors: colors,
+            // sequence: sequence,
+            // colors: colors,
             stripeBlendMode: stripeBlendMode,
             patternRepeats: patternRepeats,
             cyclePause: cyclePause,
@@ -32,6 +46,8 @@ var fnMain = (function() {
             mergePatternEnds: mergePatternEnds,
             showWarp: showWarp,
             showWeft: showWeft,
+            enableMask: enableMask,
+            strategies: strategies,
         };
         return config;
     }
@@ -56,26 +72,66 @@ var fnMain = (function() {
         return result;
     }
 
-    function colorNameToNumber(name) {
+    function colorStringToNumber(name) {
         return RGBTo24bit(chroma(name).rgb());
     }
 
-    function colorNumberToName(number) {
-        return chroma(number).name();
+    function colorNumberToHexString(number) {
+        return chroma(number).hex();
     }
 
     function portion(i, size) {
         return i / ((size -1) || 1);
     }
 
-    function generateSequence() {
+    function randomIntInclusive(min, max) {
+        return Math.floor(Math.random() * (max - min + 1) + min);
+    }
+
+    function generateSequencePairs(config) {
         //const manual = [{"width":95,"color":"#1C0070"},{"width":32,"color":"#101010"},{"width":32,"color":"#006818"},{"width":8,"color":"#440044"},{"width":32,"color":"#006818"},{"width":8,"color":"#101010"},{"width":8,"color":"#FCFCFC"}];
         //const manual = [{"width":9,"color":"#C80000"},{"width":51,"color":"#006818"},{"width":9,"color":"#2C2C80"},{"width":34,"color":"#006818"},{"width":77,"color":"#2C2C80"},{"width":13,"color":"#F8F8F8"},{"width":9,"color":"#C80000"},{"width":9,"color":"#F8F8F8"}];
-        const manual = [{"width":4,"color":"#2C2C80"},{"width":4,"color":"#101010"},{"width":32,"color":"#2C2C80"},{"width":30,"color":"#101010"},{"width":4,"color":"#E8C000"},{"width":32,"color":"#006818"},{"width":4,"color":"#101010"},{"width":32,"color":"#006818"},{"width":4,"color":"#E0E0E0"},{"width":34,"color":"#101010"},{"width":8,"color":"#1C0070"},{"width":12,"color":"#D05054"},{"width":6,"color":"#101010"},{"width":4,"color":"#E8C000"}];
+        //const manual = [{"width":4,"color":"#2C2C80"},{"width":4,"color":"#101010"},{"width":32,"color":"#2C2C80"},{"width":30,"color":"#101010"},{"width":4,"color":"#E8C000"},{"width":32,"color":"#006818"},{"width":4,"color":"#101010"},{"width":32,"color":"#006818"},{"width":4,"color":"#E0E0E0"},{"width":34,"color":"#101010"},{"width":8,"color":"#1C0070"},{"width":12,"color":"#D05054"},{"width":6,"color":"#101010"},{"width":4,"color":"#E8C000"}];
         //const manual = [{"width":8,"color":"#E0E0E0"},{"width":6,"color":"#1474B4"},{"width":6,"color":"#E0E0E0"},{"width":6,"color":"#1474B4"},{"width":3,"color":"#E0E0E0"},{"width":69,"color":"#1474B4"},{"width":11,"color":"#003C64"},{"width":11,"color":"#888888"},{"width":3,"color":"#5C8CA8"},{"width":3,"color":"#888888"},{"width":3,"color":"#5C8CA8"},{"width":11,"color":"#888888"},{"width":11,"color":"#003C64"},{"width":3,"color":"#901C38"},{"width":3,"color":"#003C64"},{"width":8,"color":"#901C38"},{"width":3,"color":"#003C64"},{"width":3,"color":"#901C38"},{"width":11,"color":"#003C64"},{"width":3,"color":"#E0E0E0"},{"width":6,"color":"#003C64"},{"width":8,"color":"#E0E0E0"},{"width":14,"color":"#C80000"}];
         //const manual = [{"width":13,"color":"#A8ACE8"},{"width":3,"color":"#101010"},{"width":47,"color":"#1C0070"},{"width":27,"color":"#101010"},{"width":20,"color":"#1C0070"},{"width":7,"color":"#880000"},{"width":20,"color":"#1C0070"},{"width":10,"color":"#880000"},{"width":20,"color":"#1C0070"},{"width":7,"color":"#880000"},{"width":20,"color":"#1C0070"},{"width":7,"color":"#101010"},{"width":7,"color":"#D09800"}];
-        return manual;
+        //const manual = [{width: 1, color: "blue"},{width: 1, color: "white"}];
+        //return manual;
+
+        const sequence = seqGenCatalog.random(config);
+        const colors = colorGenCatalog.random(config, sequence.length);
+        const result = sequence.map((x,i) => {return {width: x, color: colors[i]};});
+        console.log(result);
+        return result;
     }
+
+    const seqGenCatalog = (function(){
+        function naiveRandom(config) {
+            const strat = config.strategies.randomSequence;
+            const numStripes = randomIntInclusive(strat.stripesMin, strat.stripesMax);
+            const stripes = makeRange(numStripes).map(() => randomIntInclusive(strat.widthMin, strat.widthMax));
+            return stripes;
+        }
+
+        return {
+            random: naiveRandom,
+        }
+    })();
+
+    const colorGenCatalog = (function() {
+        function naiveRandom(config, length) {
+            const strat = config.strategies.randomColor;
+            const stops = randomIntInclusive(2, strat.maxBaseColors);
+            const scale = chroma.scale(makeRange(stops).map(x => chroma.random())).mode('lab');
+            const samples = scale.colors(length, format=null);
+            const colorBag = samples.concat([chroma('black'), chroma('white')]).map(x => x.hex());
+            const result = makeRange(length).map(() => colorBag[Math.floor(Math.random() * colorBag.length)]);
+            return result;
+        }
+
+        return {
+            random: naiveRandom
+        }
+    })();
 
     function makeBackground(config, screenRect, renderer) {
         const canvasElement = document.createElement('canvas');
@@ -133,9 +189,12 @@ var fnMain = (function() {
             }
             return repeated;
         }
-        const colors = mirrorAndRepeat(config.colors, config.patternRepeats);
-        function sequenceToShapes(sequence, setter) {
-            const render = mirrorAndRepeat(config.sequence, config.patternRepeats);
+        const sequencePairs = generateSequencePairs(config);
+        const colorSeq = sequencePairs.map(x => x.color);
+        const widthSeq = sequencePairs.map(x => x.width);
+        const colors = mirrorAndRepeat(colorSeq, config.patternRepeats);
+        function sequenceToShapes(seq, setter) {
+            const render = mirrorAndRepeat(seq, config.patternRepeats);
             const sum = render.reduce((a,b) => a + b);
             if(sum < 1) { throw "sequence must be positive"; }
             const longDimension = board.width < board.height ? board.height : board.width;
@@ -160,7 +219,7 @@ var fnMain = (function() {
             const gfx = new PIXI.Graphics();
             gfx.width = width;
             gfx.height = height;
-            const color = colorNameToNumber(obj.color);
+            const color = colorStringToNumber(obj.color);
             gfx.beginFill(color);
             gfx.drawRect(0, 0, width, height);
             gfx.endFill();
@@ -172,9 +231,11 @@ var fnMain = (function() {
             sprite.blendMode = config.stripeBlendMode;
             return sprite;
         }
-        const mask = makeMaskSprite(config, board, renderer);
-        const talls = sequenceToShapes(config.sequence, (a,b) => {a.width = b;});
-        const wides = sequenceToShapes(config.sequence, (a,b) => {a.height = b;});
+        const mask = config.enableMask == true
+            ? makeMaskSprite(config, board, renderer)
+            : null;
+        const talls = sequenceToShapes(widthSeq, (a,b) => {a.width = b;});
+        const wides = sequenceToShapes(widthSeq, (a,b) => {a.height = b;});
         let leftCounter = board.left;
         let topCounter = board.top;
         const warpSprites = talls.map(s => {
